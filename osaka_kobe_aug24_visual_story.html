@@ -459,8 +459,96 @@
     @keyframes detailRise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
     @keyframes hintFade { 0%,65% { opacity: 1; } 100% { opacity: 0; } }
 
+    .railway-legend {
+      position: absolute;
+      z-index: 6;
+      right: 20px;
+      top: 208px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 10px;
+      color: #e8eef0;
+      background: rgba(7,16,21,.68);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 800;
+      backdrop-filter: blur(10px);
+    }
+
+    .rail-dot {
+      width: 18px;
+      height: 4px;
+      border-radius: 99px;
+      background: var(--gold);
+      box-shadow: 0 0 0 2px rgba(246,200,76,.14);
+    }
+
+    .electric-train {
+      position: absolute;
+      z-index: 7;
+      width: 42px;
+      height: 24px;
+      display: none;
+      place-items: center;
+      border: 2px solid #071015;
+      border-radius: 7px 7px 4px 4px;
+      background: var(--gold);
+      box-shadow: 0 5px 16px rgba(0,0,0,.38);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      transition: left 1800ms cubic-bezier(.2,.8,.2,1), top 1800ms cubic-bezier(.2,.8,.2,1);
+    }
+
+    .electric-train::before {
+      content: "";
+      position: absolute;
+      left: 5px;
+      right: 5px;
+      top: 4px;
+      height: 8px;
+      border-radius: 2px;
+      background: #17313e;
+    }
+
+    .electric-train span,
+    .electric-train i,
+    .electric-train b {
+      position: absolute;
+      bottom: -5px;
+      width: 7px;
+      height: 7px;
+      border: 2px solid #071015;
+      border-radius: 50%;
+      background: #aeb7ba;
+    }
+
+    .electric-train span { left: 5px; }
+    .electric-train i { right: 5px; }
+    .electric-train b { display: none; }
+
+    .story-mode .electric-train {
+      display: grid;
+      animation: trainBob 900ms ease-in-out infinite;
+    }
+
+    @keyframes trainBob { 0%,100% { margin-top: -1px; } 50% { margin-top: 1px; } }
+
+    .hotel-address {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.45;
+    }
+
+    .story-mode .railway-legend { border-color: rgba(246,200,76,.42); }
+
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+      .story-mode .electric-train { animation: none; }
     }
 
     .hero-panel {
@@ -888,19 +976,19 @@
         id: "honmachi-hotel",
         order: 2,
         name: "Super Hotel Premier 大阪本町站前",
-        shortName: "本町飯店",
+        shortName: "本町住宿",
         status: "confirmed",
         familyVisible: true,
         lat: 34.68278,
         lng: 135.49449,
         time: "約 16:00 前後",
         role: "放行李與休息",
-        transit: "KIX 到本町，抓 60 至 80 分鐘較保守",
-        lead: "大阪住宿基地，先放行李、整理一下，再往心齋橋出發。",
-        feature: "本町位置適合第一天輕鬆進市區，後面幾天也方便往大阪各區移動。",
-        planningNote: "飯店作為 8/24 至 8/27 大阪基地。若 Check-in 時間卡住，就先寄放行李再出門。",
-        tags: ["Hotel", "Honmachi", "Base"],
-        photo: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1400&q=82"
+        transit: "搭電車前往本町站，再步行至飯店",
+        lead: "大阪住宿基地，先放行李、泡天然溫泉，再往心齋橋出發。",
+        feature: "Super Hotel Premier Osaka Honmachi Ekimae Natural Hot Springs",
+        planningNote: "地址：1 Chome-5-10 Nishihonmachi, Nishi-ku, Osaka 550-0005, Japan。飯店作為 8/24 至 8/27 大阪基地。若 Check-in 時間卡住，就先寄放行李再出門。",
+        tags: ["Hotel", "Honmachi", "Natural Hot Springs"],
+        photo: "https://www.superhotel.co.jp/s_hotels/honmachi/images/honmachi-pc_image_path1-20220722160721.jpg"
       },
       {
         day: "2026-08-24",
@@ -1019,6 +1107,7 @@
     let mapFrame;
     let mapViewLabel;
     let mapCredit;
+    let electricTrain;
     let currentMapView = "";
 
     const app = document.getElementById("app");
@@ -1059,6 +1148,8 @@
       mapEl.innerHTML = `
         <div class="custom-map">
           <iframe class="osm-frame" title="OpenStreetMap GIS 底圖" loading="eager" referrerpolicy="no-referrer-when-downgrade"></iframe>
+          <div class="railway-legend"><span class="rail-dot"></span> 電車移動路線</div>
+          <div class="electric-train" aria-hidden="true"><span></span><i></i><b></b></div>
           <div class="bay-shape"></div>
           <div class="city-shape"></div>
           <div class="map-label label-osaka">Osaka City</div>
@@ -1076,6 +1167,7 @@
       markerLayer = mapEl.querySelector(".marker-layer");
       mapViewLabel = mapEl.querySelector(".map-view-label");
       mapCredit = mapEl.querySelector(".map-credit");
+      electricTrain = mapEl.querySelector(".electric-train");
     }
 
     function mapViewFor(stop) {
@@ -1186,6 +1278,12 @@
         markerLayer.appendChild(marker);
         markers.push(marker);
       });
+
+      if (electricTrain && activeStop) {
+        const activePoint = project(activeStop, view);
+        electricTrain.style.left = `${activePoint.x}%`;
+        electricTrain.style.top = `${activePoint.y}%`;
+      }
     }
 
     function renderRail(stops) {
