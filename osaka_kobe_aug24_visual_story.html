@@ -1,0 +1,1314 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>8/24 大阪初日｜工作模式旅程地圖</title>
+  <style>
+    :root {
+      --bg: #071015;
+      --panel: rgba(9, 19, 26, 0.82);
+      --panel-strong: rgba(11, 24, 34, 0.96);
+      --line: rgba(255, 255, 255, 0.12);
+      --text: #f4f7f5;
+      --muted: #9fb0b7;
+      --gold: #f6c84c;
+      --green: #42d685;
+      --yellow: #f3c94d;
+      --gray: #a5acb4;
+      --red: #ff6b6b;
+      --blue: #74b9ff;
+      --shadow: 0 18px 60px rgba(0, 0, 0, 0.36);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      overflow-y: auto;
+      color: var(--text);
+      font-family: "Inter", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif;
+      background:
+        radial-gradient(circle at 20% 15%, rgba(116, 185, 255, 0.16), transparent 30%),
+        linear-gradient(135deg, #071015 0%, #101d24 46%, #16251f 100%);
+    }
+
+    button {
+      border: 0;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.72fr);
+      min-height: 100vh;
+      gap: 0;
+    }
+
+    .map-shell {
+      position: sticky;
+      top: 0;
+      min-width: 0;
+      height: 100vh;
+      min-height: 680px;
+      border-right: 1px solid var(--line);
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+      background: #0a141a;
+      overflow: hidden;
+    }
+
+    .custom-map {
+      position: absolute;
+      inset: 0;
+      transition: background-size 420ms ease, filter 420ms ease;
+      background: #d7ddd8;
+    }
+
+    .custom-map.city-zoom {
+      background: #d7ddd8;
+    }
+
+    .osm-frame {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      filter: saturate(0.95) contrast(1.02) brightness(0.98);
+      opacity: 1;
+      pointer-events: none;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .bay-shape {
+      position: absolute;
+      left: -8%;
+      bottom: -8%;
+      width: 58%;
+      height: 56%;
+      border-radius: 55% 45% 0 0;
+      background: rgba(35, 83, 103, 0.46);
+      transform: rotate(-8deg);
+      box-shadow: inset 0 0 80px rgba(116, 185, 255, 0.16);
+      display: none;
+    }
+
+    .city-shape {
+      position: absolute;
+      right: 4%;
+      top: 18%;
+      width: 52%;
+      height: 58%;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 47% 53% 48% 42%;
+      background: rgba(255, 255, 255, 0.025);
+      transform: rotate(8deg);
+      display: none;
+    }
+
+    .map-label {
+      position: absolute;
+      z-index: 2;
+      color: rgba(255, 255, 255, 0.42);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      pointer-events: none;
+      display: none;
+    }
+
+    .label-osaka { right: 20%; top: 31%; }
+    .label-kix { left: 15%; bottom: 25%; }
+    .label-bay { left: 28%; bottom: 35%; }
+
+    .custom-map.city-zoom .label-kix,
+    .custom-map.city-zoom .label-bay {
+      opacity: 0.2;
+    }
+
+    .map-view-label {
+      position: absolute;
+      z-index: 5;
+      left: 20px;
+      top: 208px;
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 11px;
+      border-radius: 999px;
+      color: rgba(255, 255, 255, 0.82);
+      background: rgba(7, 16, 21, 0.58);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 12px;
+      font-weight: 900;
+      pointer-events: none;
+      backdrop-filter: blur(10px);
+    }
+
+    .route-svg,
+    .marker-layer {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    .marker-layer {
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .map-vignette {
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      z-index: 600;
+      background:
+        linear-gradient(90deg, rgba(7, 16, 21, 0.08), transparent 28%),
+        linear-gradient(0deg, rgba(7, 16, 21, 0.16), transparent 26%);
+    }
+
+    .topbar {
+      position: absolute;
+      z-index: 700;
+      top: 20px;
+      left: 20px;
+      right: 20px;
+      display: grid;
+      grid-template-columns: minmax(280px, 460px) auto;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .title-block {
+      width: min(460px, 100%);
+      padding: 14px 16px;
+      background: rgba(7, 16, 21, 0.58);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
+      backdrop-filter: blur(12px);
+    }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 7px;
+      color: var(--gold);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 420px;
+      font-size: clamp(24px, 2.7vw, 36px);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      max-width: 420px;
+      margin: 9px 0 0;
+      color: #c7d2d7;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .control-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    .segmented,
+    .mode-switch {
+      display: flex;
+      gap: 6px;
+      padding: 6px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .segmented button,
+    .mode-switch button {
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 6px;
+      color: #d6e0e4;
+      background: transparent;
+      font-size: 13px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .segmented button.active,
+    .mode-switch button.active {
+      color: #071015;
+      background: var(--gold);
+    }
+
+    .timeline {
+      position: absolute;
+      z-index: 700;
+      left: 20px;
+      right: 20px;
+      bottom: 20px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 14px;
+      align-items: center;
+      padding: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .primary-controls,
+    .nav-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .main-action,
+    .nav-button {
+      height: 42px;
+      padding: 0 16px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      font-weight: 900;
+    }
+
+    .main-action {
+      color: #071015;
+      background: var(--gold);
+      border-color: transparent;
+    }
+
+    .nav-button:disabled {
+      opacity: 0.42;
+      cursor: default;
+    }
+
+    .stop-rail {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .stop-chip {
+      position: relative;
+      min-height: 42px;
+      padding: 8px 9px 8px 13px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #d9e3e7;
+      text-align: left;
+      overflow: hidden;
+    }
+
+    .stop-chip::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: var(--status-color, var(--gold));
+      opacity: var(--status-opacity, 1);
+    }
+
+    .stop-chip.active {
+      border-color: rgba(246, 200, 76, 0.72);
+      background: rgba(246, 200, 76, 0.14);
+    }
+
+    .stop-chip .time {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.1;
+    }
+
+    .stop-chip .name {
+      display: block;
+      margin-top: 3px;
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1.15;
+    }
+
+    /* Visual story mode: for family discussion and concrete visualization */
+    .story-mode .map-shell,
+    .story-mode .hero-panel {
+      animation: storyEnter 700ms cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .story-mode .map-shell {
+      background: #081117;
+    }
+
+    .story-mode .topbar,
+    .story-mode .timeline {
+      opacity: 0.28;
+      transition: opacity 240ms ease;
+    }
+
+    .story-mode .map-shell:hover .topbar,
+    .story-mode .map-shell:hover .timeline,
+    .story-mode .topbar:focus-within,
+    .story-mode .timeline:focus-within {
+      opacity: 1;
+    }
+
+    .story-mode .custom-marker {
+      transition: transform 520ms cubic-bezier(.2,.8,.2,1), opacity 300ms ease, filter 300ms ease;
+    }
+
+    .story-mode .custom-marker.active {
+      animation: markerPulse 1.8s ease-in-out infinite;
+    }
+
+    .story-mode .route-svg line {
+      animation: routeDraw 900ms ease both;
+    }
+
+    .story-mode .photo-card img {
+      animation: photoKenBurns 7s ease-out both;
+    }
+
+    .story-mode .photo-caption {
+      animation: captionRise 650ms 100ms cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .story-mode .detail-panel > * {
+      animation: detailRise 520ms cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .story-mode .detail-panel > *:nth-child(2) { animation-delay: 90ms; }
+    .story-mode .detail-panel > *:nth-child(3) { animation-delay: 160ms; }
+
+    .story-mode .story-progress {
+      position: absolute;
+      z-index: 710;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 3px;
+      background: rgba(255,255,255,.12);
+      overflow: hidden;
+    }
+
+    .story-mode .story-progress::after {
+      content: "";
+      display: block;
+      height: 100%;
+      width: var(--story-progress, 0%);
+      background: var(--gold);
+      transition: width 480ms ease;
+    }
+
+    .story-mode .story-hint {
+      position: absolute;
+      z-index: 705;
+      left: 20px;
+      bottom: 106px;
+      max-width: 280px;
+      padding: 10px 12px;
+      color: #e8eef0;
+      background: rgba(7,16,21,.72);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.45;
+      backdrop-filter: blur(12px);
+      animation: hintFade 4.5s 1s both;
+      pointer-events: none;
+    }
+
+    @keyframes storyEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @keyframes markerPulse { 0%,100% { box-shadow: 0 10px 24px rgba(0,0,0,.32), 0 0 0 0 rgba(246,200,76,.38); } 50% { box-shadow: 0 10px 24px rgba(0,0,0,.32), 0 0 0 12px rgba(246,200,76,0); } }
+    @keyframes routeDraw { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes photoKenBurns { from { transform: scale(1.06); } to { transform: scale(1.015); } }
+    @keyframes captionRise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+    @keyframes detailRise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    @keyframes hintFade { 0%,65% { opacity: 1; } 100% { opacity: 0; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+    }
+
+    .hero-panel {
+      display: grid;
+      grid-template-rows: minmax(310px, 43vh) auto;
+      min-height: 100vh;
+      background: #081117;
+    }
+
+    .photo-card {
+      position: relative;
+      overflow: hidden;
+      background: #101820;
+    }
+
+    .photo-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(0deg, rgba(8, 17, 23, 0.9) 4%, rgba(8, 17, 23, 0.28) 54%, rgba(8, 17, 23, 0.06));
+    }
+
+    .photo-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: saturate(1.04) contrast(1.02);
+      transform: scale(1.015);
+      transition: opacity 260ms ease, transform 600ms ease;
+    }
+
+    .photo-caption {
+      position: absolute;
+      z-index: 2;
+      left: 22px;
+      right: 22px;
+      bottom: 22px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      color: #061015;
+      background: var(--status-color);
+      font-size: 12px;
+      font-weight: 950;
+    }
+
+    .status-pill::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: currentColor;
+      opacity: 0.7;
+    }
+
+    .photo-caption h2 {
+      margin: 13px 0 0;
+      font-size: clamp(26px, 4.1vw, 46px);
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .photo-caption p {
+      max-width: 520px;
+      margin: 10px 0 0;
+      color: #d6e0e3;
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .detail-panel {
+      padding: 22px;
+      overflow: visible;
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .metric {
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.055);
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 5px;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .section {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.045);
+      margin-bottom: 12px;
+    }
+
+    .section h3 {
+      margin: 0 0 8px;
+      color: var(--gold);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+    }
+
+    .section p {
+      margin: 0;
+      color: #cdd8dc;
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .tag {
+      padding: 7px 9px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      color: #d8e2e6;
+      background: rgba(255, 255, 255, 0.065);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .family-mode .work-only {
+      display: none !important;
+    }
+
+    .family-mode .hero-panel {
+      grid-template-rows: minmax(360px, 50vh) 1fr;
+    }
+
+    .family-mode .photo-caption h2 {
+      font-size: clamp(30px, 5vw, 56px);
+    }
+
+    .custom-marker {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      color: #061015;
+      background: var(--status-color);
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.32);
+      font-size: 13px;
+      font-weight: 950;
+      opacity: var(--marker-opacity, 1);
+      transform: scale(var(--marker-scale, 1));
+    }
+
+    .custom-marker.active {
+      outline: 4px solid rgba(246, 200, 76, 0.26);
+      transform: scale(1.18);
+    }
+
+    .custom-marker.backup,
+    .custom-marker.tentative {
+      border-style: dashed;
+      filter: saturate(0.84);
+    }
+
+    .custom-marker.avoid {
+      opacity: 0.55;
+      filter: grayscale(0.18);
+    }
+
+    .map-credit {
+      position: absolute;
+      z-index: 5;
+      right: 10px;
+      bottom: 6px;
+      color: rgba(255, 255, 255, 0.48);
+      font-size: 11px;
+      pointer-events: none;
+    }
+
+    .map-credit a {
+      color: rgba(255, 255, 255, 0.78);
+      pointer-events: auto;
+      text-decoration: none;
+      font-weight: 800;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 1060px) {
+      body { overflow: auto; }
+
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .map-shell {
+        position: relative;
+        top: auto;
+        height: 64vh;
+        min-height: 520px;
+        border-right: 0;
+      }
+
+      .hero-panel {
+        min-height: auto;
+        grid-template-rows: minmax(260px, 38vh) auto;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
+      .control-stack {
+        align-items: stretch;
+      }
+
+      .segmented,
+      .mode-switch {
+        overflow-x: auto;
+      }
+
+      .timeline {
+        grid-template-columns: 1fr;
+      }
+
+      .primary-controls,
+      .nav-controls {
+        justify-content: space-between;
+      }
+
+      .stop-rail {
+        order: 3;
+        display: flex;
+        overflow-x: auto;
+        padding-bottom: 3px;
+      }
+
+      .stop-chip {
+        flex: 0 0 138px;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .topbar {
+        top: 12px;
+        left: 12px;
+        right: 12px;
+      }
+
+      .title-block {
+        padding: 14px;
+        width: min(100%, 460px);
+      }
+
+      .subtitle {
+        font-size: 13px;
+      }
+
+      .timeline {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+      }
+
+      .map-view-label {
+        left: 12px;
+        top: 214px;
+      }
+
+      .main-action,
+      .nav-button {
+        height: 38px;
+        padding: 0 12px;
+        font-size: 13px;
+      }
+
+      .detail-panel {
+        padding: 16px;
+      }
+
+      .detail-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" id="app">
+    <section class="map-shell" aria-label="8月24日旅程地圖">
+      <div id="map"></div>
+      <div class="map-vignette"></div>
+
+      <div class="topbar">
+        <div class="title-block">
+          <div class="eyebrow">8/24 MON · Osaka Day 1</div>
+          <h1>大阪初日</h1>
+          <p class="subtitle" id="modeCopy">先抵達，再進入大阪感。工作模式可查看暫定、備案與規劃備註。</p>
+        </div>
+
+        <div class="control-stack">
+          <div class="mode-switch" aria-label="模式切換">
+            <button type="button" data-mode="work" class="active">工作模式</button>
+            <button type="button" data-mode="family">家人模式</button>
+            <button type="button" data-mode="story">動畫播放</button>
+          </div>
+          <div class="segmented work-only" aria-label="狀態篩選">
+            <button type="button" data-filter="all" class="active">全部</button>
+            <button type="button" data-filter="confirmed">已確認</button>
+            <button type="button" data-filter="tentative">暫定</button>
+            <button type="button" data-filter="backup">備案</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="timeline" aria-label="旅程播放控制">
+        <div class="story-progress" aria-hidden="true"></div>
+        <div class="story-hint" id="storyHint" hidden>動畫播放會用主線順序呈現；看到不確定的地方，也可以回到工作模式修改。</div>
+        <div class="primary-controls">
+          <button type="button" class="main-action" id="playButton">播放今天的旅程</button>
+        </div>
+        <div class="stop-rail" id="stopRail"></div>
+        <div class="nav-controls">
+          <button type="button" class="nav-button" id="prevButton">上一站</button>
+          <button type="button" class="nav-button" id="nextButton">下一站</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="hero-panel" aria-label="目前站點資訊">
+      <div class="photo-card">
+        <img id="heroImage" alt="" src="">
+        <div class="photo-caption">
+          <span class="status-pill work-only" id="statusPill"></span>
+          <h2 id="stopTitle"></h2>
+          <p id="stopLead"></p>
+        </div>
+      </div>
+
+      <div class="detail-panel">
+        <div class="detail-grid">
+          <div class="metric">
+            <span>預計時間</span>
+            <strong id="stopTime"></strong>
+          </div>
+          <div class="metric">
+            <span>這站角色</span>
+            <strong id="stopRole"></strong>
+          </div>
+          <div class="metric work-only">
+            <span>狀態</span>
+            <strong id="stopStatus"></strong>
+          </div>
+          <div class="metric">
+            <span>移動提示</span>
+            <strong id="stopTransit"></strong>
+          </div>
+        </div>
+
+        <section class="section">
+          <h3>一眼看這裡</h3>
+          <p id="stopFeature"></p>
+          <div class="tags" id="tagList"></div>
+        </section>
+
+        <section class="section work-only">
+          <h3>規劃備註</h3>
+          <p id="planningNote"></p>
+        </section>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const tripData = [
+      {
+        day: "2026-08-24",
+        id: "kix",
+        order: 1,
+        name: "KIX 關西國際機場",
+        shortName: "KIX",
+        status: "confirmed",
+        familyVisible: true,
+        lat: 34.4349,
+        lng: 135.2441,
+        time: "約 14:30 抵達後開始移動",
+        role: "抵達大阪",
+        transit: "入境後往本町飯店移動",
+        lead: "旅行正式開始，第一天不塞正式景點，先順利進大阪市區。",
+        feature: "這站的重點是抵達、集合行李、把節奏放慢，讓後面的晚餐與散步舒服銜接。",
+        planningNote: "航班、入境與領行李時間可能浮動。這站已確認，但後續時間要保留緩衝。",
+        tags: ["Arrival", "KIX", "Start"],
+        photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/Kansai_International_Airport_Terminal_1.JPG/1280px-Kansai_International_Airport_Terminal_1.JPG"
+      },
+      {
+        day: "2026-08-24",
+        id: "honmachi-hotel",
+        order: 2,
+        name: "Super Hotel Premier 大阪本町站前",
+        shortName: "本町飯店",
+        status: "confirmed",
+        familyVisible: true,
+        lat: 34.68278,
+        lng: 135.49449,
+        time: "約 16:00 前後",
+        role: "放行李與休息",
+        transit: "KIX 到本町，抓 60 至 80 分鐘較保守",
+        lead: "大阪住宿基地，先放行李、整理一下，再往心齋橋出發。",
+        feature: "本町位置適合第一天輕鬆進市區，後面幾天也方便往大阪各區移動。",
+        planningNote: "飯店作為 8/24 至 8/27 大阪基地。若 Check-in 時間卡住，就先寄放行李再出門。",
+        tags: ["Hotel", "Honmachi", "Base"],
+        photo: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1400&q=82"
+      },
+      {
+        day: "2026-08-24",
+        id: "shinsaibashi",
+        order: 3,
+        name: "心齋橋筋",
+        shortName: "心齋橋",
+        status: "tentative",
+        familyVisible: true,
+        lat: 34.6737,
+        lng: 135.5016,
+        time: "約 17:00 至 18:00",
+        role: "散步與購物",
+        transit: "本町往心齋橋很近，依體力決定步行或搭車",
+        lead: "第一個大阪街景：商店街、人潮、霓虹慢慢出現。",
+        feature: "適合抵達日先感受大阪，不需要排硬景點；逛累了可以直接往晚餐或道頓堀走。",
+        planningNote: "暫定主線。若入境或飯店延誤，這段可縮短，只保留晚餐與道頓堀。",
+        tags: ["Street Walk", "Shopping", "Osaka Vibe"],
+        photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/Shinsaibashi-suji_Shopping_Street_in_2016.jpg/1280px-Shinsaibashi-suji_Shopping_Street_in_2016.jpg"
+      },
+      {
+        day: "2026-08-24",
+        id: "ajinoya",
+        order: 4,
+        name: "味乃家本店或大阪燒晚餐",
+        shortName: "大阪燒",
+        status: "tentative",
+        familyVisible: true,
+        lat: 34.6689,
+        lng: 135.5028,
+        time: "約 18:00 至 19:15",
+        role: "大阪第一餐",
+        transit: "心齋橋到難波周邊步行銜接",
+        lead: "抵達大阪後第一餐先吃大阪燒，行程感會比硬排景點更自然。",
+        feature: "餐廳可保留彈性：若排隊太久，就改吃同區其他大阪燒或道頓堀周邊餐廳。",
+        planningNote: "晚餐店名先以味乃家作主方案，但尚需確認排隊、訂位與孩子接受度。",
+        tags: ["Dinner", "Okonomiyaki", "Namba"],
+        photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Okonomiyaki_001.jpg/1280px-Okonomiyaki_001.jpg"
+      },
+      {
+        day: "2026-08-24",
+        id: "dotonbori",
+        order: 5,
+        name: "道頓堀與固力果看板",
+        shortName: "道頓堀",
+        status: "confirmed",
+        familyVisible: true,
+        lat: 34.66872,
+        lng: 135.50128,
+        time: "約 19:15 至 20:30",
+        role: "大阪夜景收尾",
+        transit: "晚餐後步行到戎橋與河岸",
+        lead: "今晚不趕景點，吃飽後看一眼真正的大阪夜景。",
+        feature: "固力果看板、戎橋、道頓堀河岸是第一天最有大阪感的收尾。",
+        planningNote: "主線保留。若大家累了，拍照後直接回飯店；若體力夠，再加周邊散步。",
+        tags: ["Night View", "Glico", "Dotonbori"],
+        photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Dotonbori_at_night_in_Osaka_Japan.jpg/1280px-Dotonbori_at_night_in_Osaka_Japan.jpg"
+      },
+      {
+        day: "2026-08-24",
+        id: "amerika-mura",
+        order: 6,
+        name: "美國村或 Orange Street",
+        shortName: "美國村",
+        status: "backup",
+        familyVisible: false,
+        lat: 34.6720,
+        lng: 135.4972,
+        time: "20:30 後依體力",
+        role: "備案加逛",
+        transit: "道頓堀走過去可達，但不建議硬塞",
+        lead: "如果大家還有精神，可以加一小段年輕街區散步。",
+        feature: "這是加分選項，不是第一天必去；主要用途是天氣好、精神夠時延長晚上的街區感。",
+        planningNote: "備案。家人模式預設不顯示，避免讓第一天看起來太滿。",
+        tags: ["Backup", "Street", "Optional"],
+        photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Amerikamura%2C_Osaka_01.jpg/1280px-Amerikamura%2C_Osaka_01.jpg"
+      },
+      {
+        day: "2026-08-24",
+        id: "extra-umeda",
+        order: 7,
+        name: "梅田夜景加碼",
+        shortName: "梅田加碼",
+        status: "avoid",
+        familyVisible: false,
+        lat: 34.7055,
+        lng: 135.4983,
+        time: "不建議排入 8/24",
+        role: "待刪除選項",
+        transit: "需要額外北上，第一天成本偏高",
+        lead: "第一天已經有道頓堀夜景，梅田夜景不適合再加。",
+        feature: "避免讓抵達日過滿。這類點可以移到其他天或直接刪除。",
+        planningNote: "標為 avoid，工作模式可看見原因；家人模式隱藏。",
+        tags: ["Avoid", "Too Much", "Later"],
+        photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Umeda_Sky_Building_2015.jpg/1280px-Umeda_Sky_Building_2015.jpg"
+      }
+    ];
+
+    const statusMeta = {
+      confirmed: { label: "已確認", color: "#42d685", opacity: 1, routeOpacity: 0.95, dash: null },
+      tentative: { label: "暫定", color: "#f3c94d", opacity: 0.76, routeOpacity: 0.58, dash: "8 9" },
+      backup: { label: "備案", color: "#a5acb4", opacity: 0.52, routeOpacity: 0.38, dash: "3 10" },
+      avoid: { label: "不建議", color: "#ff6b6b", opacity: 0.42, routeOpacity: 0.28, dash: "2 8" }
+    };
+
+    let mode = "work";
+    let filter = "all";
+    let activeIndex = 0;
+    let playTimer = null;
+    let storyMode = false;
+    let markers = [];
+    let routeLayers = [];
+    let routeSvg;
+    let markerLayer;
+    let mapSurface;
+    let mapFrame;
+    let mapViewLabel;
+    let mapCredit;
+    let currentMapView = "";
+
+    const app = document.getElementById("app");
+    const stopRail = document.getElementById("stopRail");
+    const heroImage = document.getElementById("heroImage");
+    const statusPill = document.getElementById("statusPill");
+    const stopTitle = document.getElementById("stopTitle");
+    const stopLead = document.getElementById("stopLead");
+    const stopTime = document.getElementById("stopTime");
+    const stopRole = document.getElementById("stopRole");
+    const stopTransit = document.getElementById("stopTransit");
+    const stopStatus = document.getElementById("stopStatus");
+    const stopFeature = document.getElementById("stopFeature");
+    const planningNote = document.getElementById("planningNote");
+    const tagList = document.getElementById("tagList");
+    const playButton = document.getElementById("playButton");
+    const prevButton = document.getElementById("prevButton");
+    const nextButton = document.getElementById("nextButton");
+    const modeCopy = document.getElementById("modeCopy");
+    const mapEl = document.getElementById("map");
+    const storyHint = document.getElementById("storyHint");
+
+    function isStoryMode() {
+      return mode === "story";
+    }
+
+    function visibleStops() {
+      return tripData
+        .filter((stop) => {
+          if (mode === "family" || mode === "story") return stop.familyVisible && ["confirmed", "tentative"].includes(stop.status);
+          if (filter === "all") return true;
+          return stop.status === filter;
+        })
+        .sort((a, b) => a.order - b.order);
+    }
+
+    function initMap() {
+      mapEl.innerHTML = `
+        <div class="custom-map">
+          <iframe class="osm-frame" title="OpenStreetMap GIS 底圖" loading="eager" referrerpolicy="no-referrer-when-downgrade"></iframe>
+          <div class="bay-shape"></div>
+          <div class="city-shape"></div>
+          <div class="map-label label-osaka">Osaka City</div>
+          <div class="map-label label-kix">KIX</div>
+          <div class="map-label label-bay">Osaka Bay</div>
+          <svg class="route-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div class="marker-layer"></div>
+          <div class="map-view-label">廣域視角：KIX → 大阪市區</div>
+          <div class="map-credit"></div>
+        </div>
+      `;
+      mapSurface = mapEl.querySelector(".custom-map");
+      mapFrame = mapEl.querySelector(".osm-frame");
+      routeSvg = mapEl.querySelector(".route-svg");
+      markerLayer = mapEl.querySelector(".marker-layer");
+      mapViewLabel = mapEl.querySelector(".map-view-label");
+      mapCredit = mapEl.querySelector(".map-credit");
+    }
+
+    function mapViewFor(stop) {
+      return stop.id === "kix" ? "region" : "city";
+    }
+
+    function boundsFor(view) {
+      return view === "city"
+        ? { minLat: 34.664, maxLat: 34.688, minLng: 135.489, maxLng: 135.507 }
+        : { minLat: 34.42, maxLat: 34.72, minLng: 135.20, maxLng: 135.54 };
+    }
+
+    function osmEmbedUrl(view) {
+      const bounds = boundsFor(view);
+      const bbox = [
+        bounds.minLng,
+        bounds.minLat,
+        bounds.maxLng,
+        bounds.maxLat
+      ].join("%2C");
+      return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik`;
+    }
+
+    function osmOpenUrl(view) {
+      const bounds = boundsFor(view);
+      const centerLat = (bounds.minLat + bounds.maxLat) / 2;
+      const centerLng = (bounds.minLng + bounds.maxLng) / 2;
+      const zoom = view === "city" ? 15 : 10;
+      return `https://www.openstreetmap.org/#map=${zoom}/${centerLat.toFixed(5)}/${centerLng.toFixed(5)}`;
+    }
+
+    function syncMapFrame(view) {
+      if (currentMapView === view) return;
+      currentMapView = view;
+      mapFrame.src = osmEmbedUrl(view);
+      mapCredit.innerHTML = `OpenStreetMap GIS · <a href="${osmOpenUrl(view)}" target="_blank" rel="noopener">開啟 GIS 地圖</a>`;
+    }
+
+    function mercatorY(lat) {
+      const radians = lat * Math.PI / 180;
+      return Math.log(Math.tan(Math.PI / 4 + radians / 2));
+    }
+
+    function project(stop, view) {
+      const bounds = boundsFor(view);
+      const x = ((stop.lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 100;
+      const topMercator = mercatorY(bounds.maxLat);
+      const bottomMercator = mercatorY(bounds.minLat);
+      const y = ((topMercator - mercatorY(stop.lat)) / (topMercator - bottomMercator)) * 100;
+      return {
+        x: Math.max(3, Math.min(97, x)),
+        y: Math.max(3, Math.min(97, y))
+      };
+    }
+
+    function drawMap(stops) {
+      markers.forEach((marker) => marker.remove());
+      routeLayers.forEach((layer) => layer.remove());
+      markers = [];
+      routeLayers = [];
+      routeSvg.innerHTML = "";
+      markerLayer.innerHTML = "";
+      const activeStop = stops[activeIndex] || stops[0];
+      const view = mapViewFor(activeStop);
+      mapSurface.classList.toggle("city-zoom", view === "city");
+      syncMapFrame(view);
+      mapViewLabel.textContent = view === "city"
+        ? "市區放大：本町・心齋橋・難波・道頓堀"
+        : "廣域視角：KIX → 大阪市區";
+
+      for (let index = 0; index < stops.length - 1; index += 1) {
+        const from = stops[index];
+        const to = stops[index + 1];
+        const segmentStatus = to.status === "confirmed" ? from.status : to.status;
+        const meta = statusMeta[segmentStatus];
+        const start = project(from, view);
+        const end = project(to, view);
+        const layer = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        layer.setAttribute("x1", start.x);
+        layer.setAttribute("y1", start.y);
+        layer.setAttribute("x2", end.x);
+        layer.setAttribute("y2", end.y);
+        layer.setAttribute("stroke", meta.color);
+        layer.setAttribute("stroke-width", index < activeIndex ? "1.15" : "0.75");
+        layer.setAttribute("stroke-linecap", "round");
+        layer.setAttribute("opacity", index < activeIndex ? meta.routeOpacity : meta.routeOpacity * 0.36);
+        if (meta.dash) layer.setAttribute("stroke-dasharray", meta.dash);
+        routeSvg.appendChild(layer);
+        routeLayers.push(layer);
+      }
+
+      stops.forEach((stop, index) => {
+        const meta = statusMeta[stop.status];
+        const point = project(stop, view);
+        const marker = document.createElement("button");
+        marker.type = "button";
+        marker.className = `custom-marker ${stop.status}${index === activeIndex ? " active" : ""}`;
+        marker.style.setProperty("--status-color", meta.color);
+        marker.style.setProperty("--marker-opacity", meta.opacity);
+        marker.style.left = `${point.x}%`;
+        marker.style.top = `${point.y}%`;
+        marker.style.marginLeft = "-15px";
+        marker.style.marginTop = "-15px";
+        marker.style.pointerEvents = "auto";
+        marker.textContent = stop.order;
+        marker.setAttribute("aria-label", stop.name);
+        marker.addEventListener("click", () => setActive(index, true));
+        markerLayer.appendChild(marker);
+        markers.push(marker);
+      });
+    }
+
+    function renderRail(stops) {
+      stopRail.innerHTML = "";
+      stops.forEach((stop, index) => {
+        const meta = statusMeta[stop.status];
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `stop-chip${index === activeIndex ? " active" : ""}`;
+        button.style.setProperty("--status-color", meta.color);
+        button.style.setProperty("--status-opacity", meta.opacity);
+        button.innerHTML = `<span class="time">${stop.time}</span><span class="name">${stop.shortName}</span>`;
+        button.addEventListener("click", () => setActive(index, true));
+        stopRail.appendChild(button);
+      });
+    }
+
+    function renderDetail(stop) {
+      const meta = statusMeta[stop.status];
+      heroImage.style.opacity = "0";
+      window.setTimeout(() => {
+        heroImage.src = stop.photo;
+        heroImage.alt = stop.name;
+        heroImage.style.opacity = "1";
+      }, 120);
+
+      statusPill.textContent = meta.label;
+      statusPill.style.setProperty("--status-color", meta.color);
+      stopTitle.textContent = stop.name;
+      stopLead.textContent = stop.lead;
+      stopTime.textContent = stop.time;
+      stopRole.textContent = stop.role;
+      stopTransit.textContent = stop.transit;
+      stopStatus.textContent = meta.label;
+      stopFeature.textContent = stop.feature;
+      planningNote.textContent = stop.planningNote;
+      tagList.innerHTML = "";
+      stop.tags.forEach((tag) => {
+        const item = document.createElement("span");
+        item.className = "tag";
+        item.textContent = tag;
+        tagList.appendChild(item);
+      });
+    }
+
+    function setActive(index, fly) {
+      const stops = visibleStops();
+      if (!stops.length) return;
+      activeIndex = Math.max(0, Math.min(index, stops.length - 1));
+      const stop = stops[activeIndex];
+      renderRail(stops);
+      drawMap(stops);
+      renderDetail(stop);
+      prevButton.disabled = activeIndex === 0;
+      nextButton.disabled = activeIndex === stops.length - 1;
+      if (isStoryMode()) {
+        mapEl.style.setProperty("--story-progress", `${((activeIndex + 1) / stops.length) * 100}%`);
+      }
+      if (fly) {
+        const view = mapViewFor(stop);
+        mapEl.style.setProperty("--focus-x", `${project(stop, view).x}%`);
+        mapEl.style.setProperty("--focus-y", `${project(stop, view).y}%`);
+      }
+    }
+
+    function refresh() {
+      const stops = visibleStops();
+      activeIndex = Math.min(activeIndex, Math.max(stops.length - 1, 0));
+      modeCopy.textContent = mode === "story"
+        ? "用主線動畫把一天走一遍：先抵達、放行李，再感受大阪街景與夜晚。"
+        : mode === "family"
+          ? "先抵達，再進入大阪感。家人模式只顯示主線，隱藏規劃備註。"
+          : "先抵達，再進入大阪感。工作模式可查看暫定、備案與規劃備註。";
+      app.classList.toggle("family-mode", mode === "family" || mode === "story");
+      app.classList.toggle("story-mode", isStoryMode());
+      storyHint.hidden = !isStoryMode();
+      setActive(activeIndex, false);
+    }
+
+    function playJourney() {
+      window.clearInterval(playTimer);
+      activeIndex = 0;
+      setActive(0, true);
+      playButton.textContent = "播放中";
+      playTimer = window.setInterval(() => {
+        const stops = visibleStops();
+        if (activeIndex >= stops.length - 1) {
+          window.clearInterval(playTimer);
+          playButton.textContent = "再播一次";
+          return;
+        }
+        setActive(activeIndex + 1, true);
+      }, 2200);
+    }
+
+    document.querySelectorAll("[data-mode]").forEach((button) => {
+      button.addEventListener("click", () => {
+        mode = button.dataset.mode;
+        window.clearInterval(playTimer);
+        playButton.textContent = mode === "story" ? "播放今天的旅程" : "播放今天的旅程";
+        document.querySelectorAll("[data-mode]").forEach((item) => item.classList.toggle("active", item === button));
+        if (mode === "family" || mode === "story") filter = "all";
+        document.querySelectorAll("[data-filter]").forEach((item) => item.classList.toggle("active", item.dataset.filter === filter));
+        refresh();
+        if (mode === "story") window.setTimeout(playJourney, 500);
+      });
+    });
+
+    document.querySelectorAll("[data-filter]").forEach((button) => {
+      button.addEventListener("click", () => {
+        filter = button.dataset.filter;
+        activeIndex = 0;
+        document.querySelectorAll("[data-filter]").forEach((item) => item.classList.toggle("active", item === button));
+        refresh();
+      });
+    });
+
+    playButton.addEventListener("click", playJourney);
+    prevButton.addEventListener("click", () => setActive(activeIndex - 1, true));
+    nextButton.addEventListener("click", () => setActive(activeIndex + 1, true));
+
+    initMap();
+    refresh();
+  </script>
+</body>
+</html>
